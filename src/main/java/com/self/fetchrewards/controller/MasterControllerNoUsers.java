@@ -72,7 +72,7 @@ public class MasterControllerNoUsers {
             
             // if payer doesn't exist, create it
             if (!currentPayerPoints.containsKey(payer)) {
-                logger.info("Adding " + points +" points to new payer" + payer);
+                logger.info("Adding " + points +" points to new payer " + payer);
                 currentPayerPoints.put(payer, points);
             }
             // if payer exists, add to it
@@ -94,7 +94,7 @@ public class MasterControllerNoUsers {
                 // if current points + transaction points >= 0
                 if (currentPayerPoints.get(payer) + points >= 0) {
                     transactionQueue.add(transaction);
-                    logger.info("Removing " + points +" points from payer" + payer);
+                    logger.info("Removing " + Math.abs(points) +" points from payer " + payer);
                     currentPayerPoints.replace(payer, currentPayerPoints.get(payer) + points);
                 } else {
                     throw new RuntimeException("Invalid transaction, not enough points from payer " + payer + " available");
@@ -161,6 +161,7 @@ public class MasterControllerNoUsers {
                 
                 totalPoints = totalPoints - spendPoints;
                 
+                // edit transaction queue point value (reflecting a partial transaction)
                 front.setPoints(front.getPoints() - spendPoints);
                 
                 if (spentPayerPoints.containsKey(frontPayer)) {
