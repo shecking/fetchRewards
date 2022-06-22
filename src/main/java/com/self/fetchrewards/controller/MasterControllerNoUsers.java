@@ -6,30 +6,32 @@ import java.util.LinkedHashMap;
 import java.util.PriorityQueue;
 
 import org.json.simple.JSONObject;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
+import com.self.fetchrewards.model.SpendPoints;
 import com.self.fetchrewards.model.Transaction;
 
 @RestController
 @RequestMapping("/fetch")
 public class MasterControllerNoUsers {
+    
+    // logger
+    Logger logger = LoggerFactory.getLogger(MasterControllerNoUsers.class);
 
     private int totalPoints = 0;
     private int countTransactions = 0;
     
     // map that will contain current payers and points balances, irrespective of queue
     LinkedHashMap<String, Integer> currentPayerPoints = new LinkedHashMap<>();
-    
-//    // map to hold spent point values to return
-//    LinkedHashMap<String, Integer> spentPayerPoints = new LinkedHashMap<>();
     
     // creating transaction queue with sorting by timestamp
     PriorityQueue<Transaction> transactionQueue = new PriorityQueue<>(new Comparator<Transaction>() {
@@ -55,7 +57,7 @@ public class MasterControllerNoUsers {
     // ADD TRANSACTION
     // returns string stating what was added (not strictly necessary but good QOL)
     @PostMapping("points/add")
-    public ResponseEntity<String> addPayerPoints(@RequestBody Transaction transaction) {  
+    public ResponseEntity<String> addPayerPoints(@Validated @RequestBody Transaction transaction) {  
     
         // transaction information
         transaction.setTransactionId(countTransactions);
@@ -70,15 +72,18 @@ public class MasterControllerNoUsers {
             
             // if payer doesn't exist, create it
             if (!currentPayerPoints.containsKey(payer)) {
+                logger.info("Adding " + points +" points to new payer" + payer);
                 currentPayerPoints.put(payer, points);
             }
             // if payer exists, add to it
             else {
+                logger.info("Adding " + points + " points to existing payer " + payer);
                 currentPayerPoints.replace(payer,  currentPayerPoints.get(payer) + points);
             }
         } 
         // if points are negative
         else if (points < 0) {
+            
             // if payer doesn't exist
             if (!currentPayerPoints.containsKey(payer)) {
                 throw new RuntimeException("Invalid transaction, no points from payer " + payer + " available");
@@ -89,6 +94,7 @@ public class MasterControllerNoUsers {
                 // if current points + transaction points >= 0
                 if (currentPayerPoints.get(payer) + points >= 0) {
                     transactionQueue.add(transaction);
+                    logger.info("Removing " + points +" points from payer" + payer);
                     currentPayerPoints.replace(payer, currentPayerPoints.get(payer) + points);
                 } else {
                     throw new RuntimeException("Invalid transaction, not enough points from payer " + payer + " available");
@@ -109,9 +115,9 @@ public class MasterControllerNoUsers {
     // SPEND POINTS
     // returns list of spent points per payer
     @PatchMapping("points/spend")
-    public ResponseEntity<JSONObject> spendPayerPoints(@RequestBody Transaction transaction) {
+    public ResponseEntity<JSONObject> spendPayerPoints(@Validated @RequestBody SpendPoints pointsToSpend) {
         
-        int spendPoints = transaction.getPoints();
+        int spendPoints = pointsToSpend.getPoints();
         
         // map to hold spent point values to return
         LinkedHashMap<String, Integer> spentPayerPoints = new LinkedHashMap<>();
@@ -189,7 +195,7 @@ public class MasterControllerNoUsers {
   
 }
 
-// console statements for debugging
+// console statements
 // System.out.println("Current transactionQueue: " + transactionQueue);
 // System.out.println("spendPoints: " + spendPoints);
 // System.out.println("totalPoints: " + totalPoints);
