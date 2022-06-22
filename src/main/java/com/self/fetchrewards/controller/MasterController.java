@@ -22,10 +22,10 @@ import com.self.fetchrewards.model.Transaction;
 
 @RestController
 @RequestMapping("/fetch")
-public class MasterControllerNoUsers {
+public class MasterController {
     
     // logger
-    Logger logger = LoggerFactory.getLogger(MasterControllerNoUsers.class);
+    Logger logger = LoggerFactory.getLogger(MasterController.class);
 
     private int totalPoints = 0;
     private int countTransactions = 0;
@@ -94,7 +94,7 @@ public class MasterControllerNoUsers {
                 // if current points + transaction points >= 0
                 if (currentPayerPoints.get(payer) + points >= 0) {
                     transactionQueue.add(transaction);
-                    logger.info("Removing " + Math.abs(points) +" points from payer " + payer);
+                    logger.info("Removing " + Math.abs(points) +" points from existing payer " + payer);
                     currentPayerPoints.replace(payer, currentPayerPoints.get(payer) + points);
                 } else {
                     throw new RuntimeException("Invalid transaction, not enough points from payer " + payer + " available");
@@ -108,6 +108,7 @@ public class MasterControllerNoUsers {
         
         // update total points
         totalPoints = totalPoints + points;
+        logger.info("Current point total: " + totalPoints);
     
         return new ResponseEntity<>(points + " points added from payer " + payer + " at " + timestamp, HttpStatus.CREATED);
     }
@@ -115,9 +116,10 @@ public class MasterControllerNoUsers {
     // SPEND POINTS
     // returns list of spent points per payer
     @PatchMapping("points/spend")
-    public ResponseEntity<JSONObject> spendPayerPoints(@Validated @RequestBody SpendPoints pointsToSpend) {
+    public ResponseEntity<JSONObject> spendPayerPoints(@Validated @RequestBody SpendPoints sp) {
         
-        int spendPoints = pointsToSpend.getPoints();
+        int spendPoints = sp.getPoints();
+        int beforeSpending = spendPoints;
         
         // map to hold spent point values to return
         LinkedHashMap<String, Integer> spentPayerPoints = new LinkedHashMap<>();
@@ -148,6 +150,7 @@ public class MasterControllerNoUsers {
                 } else {
                     spentPayerPoints.put(frontPayer, -frontPoints);
                 }
+                // logger.info(frontPoints + " points spent from " + frontPayer);
                 
                 // update currentPayerPoints map
                 currentPayerPoints.replace(frontPayer, currentPayerPoints.get(frontPayer) - frontPoints);
@@ -169,6 +172,7 @@ public class MasterControllerNoUsers {
                 } else {
                     spentPayerPoints.put(frontPayer, -spendPoints);
                 }
+                // logger.info(spendPoints + " points spent from " + frontPayer);
                 
                 // update currentPayerPoints map
                 currentPayerPoints.replace(frontPayer, currentPayerPoints.get(frontPayer) - spendPoints);
@@ -176,7 +180,11 @@ public class MasterControllerNoUsers {
                 spendPoints = 0;
                 
             }
+            
         }
+        
+        logger.info("Points spent: " + beforeSpending);
+        logger.info("Total points after spending: " + totalPoints);
         
         JSONObject json = new JSONObject(spentPayerPoints);
         
@@ -190,6 +198,8 @@ public class MasterControllerNoUsers {
         
         // return JSON object of payers with values
         JSONObject json = new JSONObject(currentPayerPoints);
+        
+        logger.info("Current point balances: " + json.toString());
         
         return new ResponseEntity<JSONObject>(json, HttpStatus.OK);
     }
