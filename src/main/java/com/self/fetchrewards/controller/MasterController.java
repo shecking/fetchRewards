@@ -36,6 +36,7 @@ public class MasterController {
     // creating transaction queue with sorting by timestamp
     PriorityQueue<Transaction> transactionQueue = new PriorityQueue<>(new Comparator<Transaction>() {
 
+        // override existing compare method
         @Override
         public int compare(Transaction ts1, Transaction ts2) {
             long time1 = ts1.getTimestamp().getTime();
@@ -53,7 +54,6 @@ public class MasterController {
         }
     });
     
-  
     // ADD TRANSACTION
     // returns string stating what was added (not strictly necessary but good QOL)
     @PostMapping("points/add")
@@ -75,16 +75,16 @@ public class MasterController {
                 logger.info("Adding " + points +" points to new payer " + payer);
                 currentPayerPoints.put(payer, points);
             }
-            // if payer exists, add to it
+            // if payer exists, add points to it
             else {
                 logger.info("Adding " + points + " points to existing payer " + payer);
-                currentPayerPoints.replace(payer,  currentPayerPoints.get(payer) + points);
+                currentPayerPoints.replace(payer, currentPayerPoints.get(payer) + points);
             }
         } 
         // if points are negative
         else if (points < 0) {
             
-            // if payer doesn't exist
+            // if payer doesn't exist, can't take points away/points can't be negative
             if (!currentPayerPoints.containsKey(payer)) {
                 throw new RuntimeException("Invalid transaction, no points from payer " + payer + " available");
             }
@@ -96,12 +96,14 @@ public class MasterController {
                     transactionQueue.add(transaction);
                     logger.info("Removing " + Math.abs(points) +" points from existing payer " + payer);
                     currentPayerPoints.replace(payer, currentPayerPoints.get(payer) + points);
-                } else {
+                } 
+                // points can't be negative
+                else {
                     throw new RuntimeException("Invalid transaction, not enough points from payer " + payer + " available");
                 }
             }
         } 
-        // if points are 0
+        // if points are 0, no need for transaction
         else {
             throw new RuntimeException("Invalid transaction, transaction has 0 points");
         }
@@ -118,8 +120,12 @@ public class MasterController {
     @PatchMapping("points/spend")
     public ResponseEntity<JSONObject> spendPayerPoints(@Validated @RequestBody SpendPoints sp) {
         
+        if (sp.getPoints() <= 0) {
+            throw new RuntimeException("Invalid spending, spend points cannot be 0 or negative");
+        }
+        
         int spendPoints = sp.getPoints();
-        int beforeSpending = spendPoints;
+        int beforeSpending = spendPoints; // hold beforeSpending points to log later
         
         // map to hold spent point values to return
         LinkedHashMap<String, Integer> spentPayerPoints = new LinkedHashMap<>();
@@ -138,7 +144,7 @@ public class MasterController {
             String frontPayer = front.getPayer();
             int frontPoints = front.getPoints();
             
-            // if frontPoints are less than or equal to spendPoints
+            // if frontPoints are less than or equal to spendPoints, we have points leftover to spend again
             if (frontPoints <= spendPoints) {
                 
                 spendPoints = spendPoints - frontPoints;
@@ -159,7 +165,7 @@ public class MasterController {
                 transactionQueue.remove();
                 
             } 
-            // if frontPoints are greater than spendPoints
+            // if frontPoints are greater than spendPoints, we have run out of points to spend
             else {
                 
                 totalPoints = totalPoints - spendPoints;
@@ -172,21 +178,21 @@ public class MasterController {
                 } else {
                     spentPayerPoints.put(frontPayer, -spendPoints);
                 }
-                // logger.info(spendPoints + " points spent from " + frontPayer);
                 
                 // update currentPayerPoints map
                 currentPayerPoints.replace(frontPayer, currentPayerPoints.get(frontPayer) - spendPoints);
                 
                 spendPoints = 0;
                 
+                // (keep front transaction in queue for remaining points)
+                
             }
-            
         }
+        
+        JSONObject json = new JSONObject(spentPayerPoints);
         
         logger.info("Points spent: " + beforeSpending);
         logger.info("Total points after spending: " + totalPoints);
-        
-        JSONObject json = new JSONObject(spentPayerPoints);
         
         return new ResponseEntity<JSONObject>(json, HttpStatus.OK);
     }
@@ -205,10 +211,3 @@ public class MasterController {
     }
   
 }
-
-// console statements
-// System.out.println("Current transactionQueue: " + transactionQueue);
-// System.out.println("spendPoints: " + spendPoints);
-// System.out.println("totalPoints: " + totalPoints);
-// System.out.println("currentPayerPoints: " + currentPayerPoints);
-// System.out.println("spentPayerPoints: " + spentPayerPoints);
